@@ -3,7 +3,7 @@ import { createInitialSession } from "./cycle";
 describe("cycle contract", () => {
   it("creates a study session with the configured cycle target", () => {
     expect(createInitialSession(1500, 300, 900, 4)).toEqual({
-      version: 2,
+      version: 3,
       phase: "study",
       status: "stopped",
       initialDurationSeconds: 1500,
@@ -11,6 +11,8 @@ describe("cycle contract", () => {
       endTimestamp: null,
       completedPomodoros: 0,
       cycleTarget: 4,
+      notificationId: null,
+      lastActiveTimestamp: 0,
     });
   });
 });

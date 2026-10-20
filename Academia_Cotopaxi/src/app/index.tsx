@@ -5,6 +5,8 @@ import { RestartConfirmation } from "../components/RestartConfirmation";
 import { SessionMessage } from "../components/SessionMessage";
 import { StudyTimerControls } from "../components/StudyTimerControls";
 import { PomodoroProgress } from "../components/PomodoroProgress";
+import { AlarmActiveModal } from "../components/AlarmActiveModal";
+import { NotificationPermissionModal } from "../components/NotificationPermissionModal";
 import { theme } from "../constants/theme";
 import { useStudySession } from "../context/StudySessionContext";
 import { formatTime } from "../utils/timer";
@@ -23,7 +25,23 @@ function getPhaseLabel(phase: PomodoroPhase): string {
 }
 
 function StudySessionScreen() {
-  const { session, loading, error, warning, start, pause, reset } = useStudySession();
+  const {
+    session,
+    loading,
+    error,
+    warning,
+    info,
+    isAlarmActive,
+    alarmPhase,
+    isPermissionModalVisible,
+    start,
+    pause,
+    reset,
+    stopAlarm,
+    confirmPermissionModal,
+    dismissPermissionModal,
+    openNotificationSettings,
+  } = useStudySession();
   const [showRestartConfirmation, setShowRestartConfirmation] = useState(false);
 
   if (loading) {
@@ -62,7 +80,12 @@ function StudySessionScreen() {
             ? "La sesión terminó. Reinicia para comenzar otra."
             : "Concéntrate en tu sesión de estudio."}
         </Text>
-        <SessionMessage error={error} warning={warning} />
+        <SessionMessage
+          error={error}
+          warning={warning}
+          info={info}
+          onOpenSettings={() => void openNotificationSettings()}
+        />
         <View style={styles.spacer} />
         <StudyTimerControls
           hasTimeRemaining={session.remainingSeconds > 0}
@@ -76,6 +99,16 @@ function StudySessionScreen() {
         onCancel={() => setShowRestartConfirmation(false)}
         onConfirm={confirmReset}
         visible={showRestartConfirmation}
+      />
+      <AlarmActiveModal
+        visible={isAlarmActive}
+        completedPhase={alarmPhase}
+        onStop={stopAlarm}
+      />
+      <NotificationPermissionModal
+        visible={isPermissionModalVisible}
+        onConfirm={() => void confirmPermissionModal()}
+        onCancel={() => void dismissPermissionModal()}
       />
     </SafeAreaView>
   );

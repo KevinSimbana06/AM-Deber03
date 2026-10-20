@@ -5,9 +5,10 @@ export function createInitialSession(
   _shortBreakDurationSeconds = 300,
   _longBreakDurationSeconds = 900,
   cycleTarget = 4,
+  lastActiveTimestamp = 0,
 ): StudySession {
   return {
-    version: 2,
+    version: 3,
     phase: "study",
     status: "stopped",
     initialDurationSeconds: studyDurationSeconds,
@@ -15,5 +16,8 @@ export function createInitialSession(
     endTimestamp: null,
     completedPomodoros: 0,
     cycleTarget,
+    notificationId: null,
+    lastActiveTimestamp,
   };
 }
+

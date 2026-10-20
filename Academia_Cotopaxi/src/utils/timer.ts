@@ -1,8 +1,13 @@
 export function getRemainingSeconds(
   endTimestamp: number,
   currentTimestamp: number = Date.now(),
+  maxSeconds?: number,
 ): number {
-  return Math.max(0, Math.ceil((endTimestamp - currentTimestamp) / 1000));
+  const calculated = Math.max(0, Math.ceil((endTimestamp - currentTimestamp) / 1000));
+  if (typeof maxSeconds === "number") {
+    return Math.min(maxSeconds, calculated);
+  }
+  return calculated;
 }
 
 export function formatTime(totalSeconds: number): string {
