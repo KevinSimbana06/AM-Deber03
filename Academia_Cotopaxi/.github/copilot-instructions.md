@@ -26,6 +26,8 @@ Ningún archivo de esta capa puede hacer llamadas directas a `AsyncStorage`, `ex
 
 ## Comandos
 
+- Instalar dependencias: npx expo install jest-expo
+- Instalar tipos: npm install --save-dev @types/jest
 - Pruebas: npx jest
 - Tipos: npx tsc --noEmit
 - Ejecutar la app: npx expo start (solo cuando yo lo pida)
