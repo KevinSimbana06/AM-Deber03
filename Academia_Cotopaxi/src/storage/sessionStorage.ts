@@ -131,7 +131,19 @@ export async function loadStudySession(): Promise<StudySession | null> {
 
 export async function saveStudySession(session: StudySession): Promise<void> {
   try {
-    const stored: StoredSession = { version: STORAGE_VERSION, session };
+    const sanitizedSession: StudySession = {
+      version: 3,
+      phase: session.phase,
+      status: session.status,
+      initialDurationSeconds: session.initialDurationSeconds,
+      remainingSeconds: session.remainingSeconds,
+      endTimestamp: session.endTimestamp,
+      completedPomodoros: session.completedPomodoros,
+      cycleTarget: session.cycleTarget,
+      notificationId: session.notificationId,
+      lastActiveTimestamp: session.lastActiveTimestamp,
+    };
+    const stored: StoredSession = { version: STORAGE_VERSION, session: sanitizedSession };
     await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(stored));
   } catch {
     throw new StorageError("write", "No se pudo guardar la sesión.");

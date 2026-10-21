@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import type { StudySession } from "../types/pomodoro";
 import { createInitialSession } from "../utils/session";
 import {
   loadStudySession,
@@ -135,5 +136,27 @@ describe("study session storage v3", () => {
       operation: "write",
     });
     expect(new StorageError("read", "x")).toBeInstanceOf(Error);
+  });
+
+  it("restricts persisted session strictly to approved v3 fields without telemetry or user IDs (RF-006, RNF-003)", async () => {
+    const rawSessionWithExtras = {
+      ...createInitialSession(1500),
+      userId: "cotopaxi-student-001",
+      email: "student@cotopaxi.edu",
+      trackingId: "analytics-xyz",
+    } as unknown as StudySession;
+
+    (AsyncStorage.setItem as jest.Mock).mockResolvedValue(null);
+
+    await saveStudySession(rawSessionWithExtras);
+
+    const callArg = (AsyncStorage.setItem as jest.Mock).mock.calls[0][1];
+    const parsed = JSON.parse(callArg);
+
+    expect(parsed.session).not.toHaveProperty("userId");
+    expect(parsed.session).not.toHaveProperty("email");
+    expect(parsed.session).not.toHaveProperty("trackingId");
+    expect(parsed.session).toHaveProperty("version", 3);
+    expect(parsed.session).toHaveProperty("phase", "study");
   });
 });

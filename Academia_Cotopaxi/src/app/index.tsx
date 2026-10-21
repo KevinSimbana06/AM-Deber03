@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ActivityIndicator, SafeAreaView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, SafeAreaView, StyleSheet, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 import { StudyTimer } from "../components/StudyTimer";
 import { RestartConfirmation } from "../components/RestartConfirmation";
 import { SessionMessage } from "../components/SessionMessage";
@@ -25,6 +26,7 @@ function getPhaseLabel(phase: PomodoroPhase): string {
 }
 
 function StudySessionScreen() {
+  const router = useRouter();
   const {
     session,
     loading,
@@ -62,14 +64,30 @@ function StudySessionScreen() {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.eyebrow}>ACADEMIA COTOPAXI</Text>
-          <Text style={styles.title}>Pomodoro</Text>
+          <View style={styles.headerTitleRow}>
+            <View>
+              <Text style={styles.eyebrow}>ACADEMIA COTOPAXI</Text>
+              <Text style={styles.title}>Pomodoro</Text>
+            </View>
+            <Pressable
+              accessibilityLabel="Abrir ajustes del pomodoro"
+              accessibilityRole="button"
+              onPress={() => router.push("/settings")}
+              style={styles.settingsButton}
+              testID="settings-nav-button"
+            >
+              <Text style={styles.settingsIcon}>⚙</Text>
+            </Pressable>
+          </View>
         </View>
+
         <StudyTimer
           phase={session.phase}
           phaseLabel={getPhaseLabel(session.phase)}
           status={session.status}
           timeText={formatTime(session.remainingSeconds)}
+          remainingSeconds={session.remainingSeconds}
+          initialDurationSeconds={session.initialDurationSeconds}
         />
         <PomodoroProgress
           completedPomodoros={session.completedPomodoros}
@@ -80,12 +98,14 @@ function StudySessionScreen() {
             ? "La sesión terminó. Reinicia para comenzar otra."
             : "Concéntrate en tu sesión de estudio."}
         </Text>
-        <SessionMessage
-          error={error}
-          warning={warning}
-          info={info}
-          onOpenSettings={() => void openNotificationSettings()}
-        />
+        <View style={styles.messageWrapper}>
+          <SessionMessage
+            error={error}
+            warning={warning}
+            info={info}
+            onOpenSettings={() => void openNotificationSettings()}
+          />
+        </View>
         <View style={styles.spacer} />
         <StudyTimerControls
           hasTimeRemaining={session.remainingSeconds > 0}
@@ -126,6 +146,25 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 36,
   },
+  headerTitleRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  settingsButton: {
+    alignItems: "center",
+    backgroundColor: theme.colors.navyBrand,
+    borderColor: theme.colors.slate,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    height: 44,
+    justifyContent: "center",
+    width: 44,
+  },
+  settingsIcon: {
+    color: theme.colors.white,
+    fontSize: 20,
+  },
   eyebrow: {
     color: theme.colors.navyBrand,
     fontSize: 13,
@@ -138,11 +177,16 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginTop: 4,
   },
+
   description: {
     color: theme.colors.navyBrand,
-    fontSize: 16,
-    marginTop: 24,
+    fontSize: 15,
+    marginTop: 14,
     textAlign: "center",
+  },
+  messageWrapper: {
+    marginTop: 12,
+    width: "100%",
   },
   spacer: {
     flex: 1,

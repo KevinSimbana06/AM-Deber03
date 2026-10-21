@@ -70,4 +70,18 @@ describe("SessionMessage component", () => {
     });
     expect(onOpenSettings).toHaveBeenCalledTimes(1);
   });
+
+  it("renders non-blocking storage degradation warning (RF-007, Decisión 4)", () => {
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(
+        <SessionMessage warning="No se pudieron guardar los cambios en el dispositivo. La sesión continuará en memoria mientras la aplicación esté abierta." />,
+      );
+    });
+    const textNode = renderer.root.findByProps({
+      children:
+        "No se pudieron guardar los cambios en el dispositivo. La sesión continuará en memoria mientras la aplicación esté abierta.",
+    });
+    expect(textNode).toBeDefined();
+  });
 });

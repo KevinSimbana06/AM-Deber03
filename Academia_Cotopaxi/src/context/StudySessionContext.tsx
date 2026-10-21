@@ -1,12 +1,13 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { AppState, type AppStateStatus } from "react-native";
-import type { PomodoroPhase, StudySession } from "../types/pomodoro";
+import type { PomodoroPhase, PomodoroSettings, StudySession } from "../types/pomodoro";
 import {
   addNotificationResponseListener,
   cancelFinishNotification,
   dismissAllNotifications,
   getNotificationPermissionStatus,
   openNotificationSettings,
+  playAlarmWithFallback,
   requestNotificationPermission,
   scheduleFinishNotification,
   startAlarmVibration,
@@ -40,15 +41,18 @@ export interface StudySessionContextValue {
   confirmPermissionModal: () => Promise<void>;
   dismissPermissionModal: () => Promise<void>;
   openNotificationSettings: () => Promise<void>;
+  applySettings: (settings: PomodoroSettings) => Promise<void>;
 }
 
-const StudySessionContext = createContext<StudySessionContextValue | null>(null);
+export const StudySessionContext = createContext<StudySessionContextValue | null>(null);
 const DEFAULT_DURATION_SECONDS = 25 * 60;
 const PHASE_DURATIONS: PhaseDurations = {
   studySeconds: 25 * 60,
   shortBreakSeconds: 5 * 60,
   longBreakSeconds: 15 * 60,
 };
+const STORAGE_WARNING_MESSAGE =
+  "No se pudieron guardar los cambios en el dispositivo. La sesión continuará en memoria mientras la aplicación esté abierta.";
 
 export function StudySessionProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<StudySession>(() =>
@@ -63,6 +67,7 @@ export function StudySessionProvider({ children }: { children: React.ReactNode }
   const [alarmStartedTimestamp, setAlarmStartedTimestamp] = useState<number | null>(null);
   const [isPermissionModalVisible, setIsPermissionModalVisible] = useState(false);
   const [hasDismissedPermissionModal, setHasDismissedPermissionModal] = useState(false);
+  const phaseDurationsRef = useRef<PhaseDurations>(PHASE_DURATIONS);
 
   const stopAlarm = () => {
     setIsAlarmActive(false);
@@ -91,13 +96,17 @@ export function StudySessionProvider({ children }: { children: React.ReactNode }
 
   const synchronize = async (baseSession: StudySession): Promise<StudySession> => {
     void dismissAllNotifications();
-    const recovery = evaluateSessionRecovery(baseSession, Date.now(), PHASE_DURATIONS);
+    const recovery = evaluateSessionRecovery(baseSession, Date.now(), phaseDurationsRef.current);
     let nextSession = recovery.session;
 
     if (recovery.anomaly === "expiredInactivity") {
       setInfo(recovery.message ?? null);
     } else if (recovery.anomaly === "phaseCompletedInAbsence") {
       setInfo(recovery.message ?? null);
+      setIsAlarmActive(true);
+      setAlarmPhase(baseSession.phase);
+      setAlarmStartedTimestamp(Date.now());
+      void playAlarmWithFallback();
     } else if (recovery.anomaly === "clockBackward") {
       setWarning(recovery.message ?? null);
     }
@@ -139,7 +148,11 @@ export function StudySessionProvider({ children }: { children: React.ReactNode }
         if (saved) {
           const nextSession = await synchronize(saved);
           setSession(nextSession);
-          await saveStudySession(nextSession);
+          try {
+            await saveStudySession(nextSession);
+          } catch {
+            setWarning(STORAGE_WARNING_MESSAGE);
+          }
         }
       })
       .catch(async (err: unknown) => {
@@ -156,7 +169,9 @@ export function StudySessionProvider({ children }: { children: React.ReactNode }
           setSession(clean);
           try {
             await saveStudySession(clean);
-          } catch {}
+          } catch {
+            setWarning(STORAGE_WARNING_MESSAGE);
+          }
         } else {
           setError("No se pudo recuperar la sesión guardada.");
         }
@@ -175,16 +190,22 @@ export function StudySessionProvider({ children }: { children: React.ReactNode }
       if (nextState === "active") {
         void dismissAllNotifications();
         setSession((current) => {
-          const recovery = evaluateSessionRecovery(current, Date.now(), PHASE_DURATIONS);
+          const recovery = evaluateSessionRecovery(current, Date.now(), phaseDurationsRef.current);
           if (recovery.anomaly === "expiredInactivity") {
             setInfo(recovery.message ?? null);
           } else if (recovery.anomaly === "phaseCompletedInAbsence") {
             setInfo(recovery.message ?? null);
+            setIsAlarmActive(true);
+            setAlarmPhase(current.phase);
+            setAlarmStartedTimestamp(Date.now());
+            void playAlarmWithFallback();
           } else if (recovery.anomaly === "clockBackward") {
             setWarning(recovery.message ?? null);
           }
           if (recovery.session !== current) {
-            void saveStudySession(recovery.session);
+            void saveStudySession(recovery.session).catch(() => {
+              setWarning(STORAGE_WARNING_MESSAGE);
+            });
           }
           return recovery.session;
         });
@@ -203,7 +224,10 @@ export function StudySessionProvider({ children }: { children: React.ReactNode }
         if (current.status !== "running" || current.endTimestamp === null) return current;
         const remaining = getRemainingSeconds(current.endTimestamp, Date.now());
         if (remaining === 0) {
-          const completed = completePhase({ ...current, remainingSeconds: 0 }, PHASE_DURATIONS);
+          const completed = completePhase(
+            { ...current, remainingSeconds: 0 },
+            phaseDurationsRef.current,
+          );
           const next = {
             ...completed,
             notificationId: null,
@@ -213,7 +237,10 @@ export function StudySessionProvider({ children }: { children: React.ReactNode }
           setAlarmPhase(current.phase);
           setAlarmStartedTimestamp(Date.now());
           startAlarmVibration();
-          void saveStudySession(next);
+          void playAlarmWithFallback();
+          void saveStudySession(next).catch(() => {
+            setWarning(STORAGE_WARNING_MESSAGE);
+          });
           return next;
         }
         return {
@@ -233,14 +260,17 @@ export function StudySessionProvider({ children }: { children: React.ReactNode }
       setError(null);
       return true;
     } catch {
-      setError("No se pudo guardar la sesión. Se conserva el último estado confirmado.");
-      return false;
+      // Degradación suave: la sesión continúa en memoria (RF-007, Decisión 4)
+      setSession(next);
+      setWarning(STORAGE_WARNING_MESSAGE);
+      setError(null);
+      return true;
     }
   };
 
   const executeStart = async (allowNotification: boolean) => {
     stopAlarm();
-    const syncCurrent = evaluateSessionRecovery(session, Date.now(), PHASE_DURATIONS).session;
+    const syncCurrent = evaluateSessionRecovery(session, Date.now(), phaseDurationsRef.current).session;
     const next = startSession(syncCurrent, Date.now());
     if (next === session) {
       return;
@@ -263,6 +293,44 @@ export function StudySessionProvider({ children }: { children: React.ReactNode }
 
     next.notificationId = scheduledId;
     await commit(next);
+  };
+
+  const applySettings = async (newSettings: PomodoroSettings) => {
+    const updatedDurations: PhaseDurations = {
+      studySeconds: newSettings.studyDurationMinutes * 60,
+      shortBreakSeconds: newSettings.shortBreakMinutes * 60,
+      longBreakSeconds: newSettings.longBreakMinutes * 60,
+    };
+    phaseDurationsRef.current = updatedDurations;
+
+    setSession((current) => {
+      if (current.status === "stopped") {
+        const nominal =
+          current.phase === "study"
+            ? updatedDurations.studySeconds
+            : current.phase === "shortBreak"
+              ? updatedDurations.shortBreakSeconds
+              : updatedDurations.longBreakSeconds;
+
+        const next: StudySession = {
+          ...current,
+          initialDurationSeconds: nominal,
+          remainingSeconds: nominal,
+          cycleTarget: newSettings.cycleTarget,
+          lastActiveTimestamp: Date.now(),
+        };
+        void saveStudySession(next);
+        return next;
+      }
+
+      const next: StudySession = {
+        ...current,
+        cycleTarget: newSettings.cycleTarget,
+        lastActiveTimestamp: Date.now(),
+      };
+      void saveStudySession(next);
+      return next;
+    });
   };
 
   const start = async () => {
@@ -366,6 +434,7 @@ export function StudySessionProvider({ children }: { children: React.ReactNode }
       confirmPermissionModal,
       dismissPermissionModal,
       openNotificationSettings: handleOpenNotificationSettings,
+      applySettings,
     }),
     [
       session,
@@ -382,6 +451,7 @@ export function StudySessionProvider({ children }: { children: React.ReactNode }
       confirmPermissionModal,
       dismissPermissionModal,
       handleOpenNotificationSettings,
+      applySettings,
     ],
   );
 

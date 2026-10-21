@@ -12,6 +12,7 @@ type NotificationResult =
 
 type NotificationsModule = typeof import("expo-notifications");
 
+
 function loadNotifications(): NotificationsModule | null {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -20,6 +21,26 @@ function loadNotifications(): NotificationsModule | null {
     return null;
   }
 }
+
+function initNotificationHandler(): void {
+  const Notifications = loadNotifications();
+  if (Notifications && typeof Notifications.setNotificationHandler === "function") {
+    try {
+      Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldShowBanner: true,
+          shouldShowList: true,
+          shouldPlaySound: true,
+          shouldSetBadge: false,
+        }),
+      });
+    } catch {
+      // Tolerante en entornos sin soporte
+    }
+  }
+}
+
+initNotificationHandler();
 
 export async function requestNotificationPermission(): Promise<NotificationResult> {
   const Notifications = loadNotifications();
@@ -36,6 +57,8 @@ export async function requestNotificationPermission(): Promise<NotificationResul
         name: "Alarma de fin de fase",
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: ALARM_VIBRATION_PATTERN,
+        enableVibrate: true,
+        showBadge: false,
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
         audioAttributes: {
           usage: Notifications.AndroidAudioUsage.ALARM,
@@ -174,12 +197,37 @@ export function stopAlarmVibration(): void {
   }
 }
 
+export async function playAlarmWithFallback(
+  playAudioFn?: () => Promise<void> | void,
+): Promise<{ audioPlayed: boolean; vibrationStarted: boolean }> {
+  let vibrationStarted = false;
+  let audioPlayed = false;
+
+  try {
+    startAlarmVibration();
+    vibrationStarted = true;
+  } catch {
+    // Tolerante ante hardware sin vibración
+  }
+
+  if (playAudioFn) {
+    try {
+      await playAudioFn();
+      audioPlayed = true;
+    } catch {
+      // Respaldo por vibración ante ausencia o fallo de audio 
+    }
+  }
+
+  return { audioPlayed, vibrationStarted };
+}
+
 export function addNotificationResponseListener(
   callback: (action: "stop" | "open") => void,
 ): () => void {
   const Notifications = loadNotifications();
   if (Notifications === null) {
-    return () => {};
+    return () => { };
   }
 
   try {
@@ -196,7 +244,7 @@ export function addNotificationResponseListener(
       subscription.remove();
     };
   } catch {
-    return () => {};
+    return () => { };
   }
 }
 

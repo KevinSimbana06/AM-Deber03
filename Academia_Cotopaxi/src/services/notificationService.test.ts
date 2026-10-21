@@ -8,6 +8,7 @@ import {
   dismissAllNotifications,
   getNotificationPermissionStatus,
   openNotificationSettings,
+  playAlarmWithFallback,
   requestNotificationPermission,
   scheduleFinishNotification,
   startAlarmVibration,
@@ -116,6 +117,29 @@ describe("notification service with alarm channel and interactive actions", () =
       throw new Error("Cancel failed");
     });
     expect(() => stopAlarmVibration()).not.toThrow();
+  });
+
+  it("triggers vibration fallback safely when audio playback fails or is unavailable (RF-003, RF-004, Decisión 3)", async () => {
+    const failingAudio = jest.fn().mockRejectedValue(new Error("Audio device error or muted"));
+    const result = await playAlarmWithFallback(failingAudio);
+
+    expect(Vibration.vibrate).toHaveBeenCalledWith(ALARM_VIBRATION_PATTERN, true);
+    expect(result).toEqual({ audioPlayed: false, vibrationStarted: true });
+  });
+
+  it("triggers both vibration and audio successfully when audio is working", async () => {
+    const successAudio = jest.fn().mockResolvedValue(undefined);
+    const result = await playAlarmWithFallback(successAudio);
+
+    expect(Vibration.vibrate).toHaveBeenCalledWith(ALARM_VIBRATION_PATTERN, true);
+    expect(result).toEqual({ audioPlayed: true, vibrationStarted: true });
+  });
+
+  it("operates gracefully if audio is omitted and only vibration is available", async () => {
+    const result = await playAlarmWithFallback();
+
+    expect(Vibration.vibrate).toHaveBeenCalledWith(ALARM_VIBRATION_PATTERN, true);
+    expect(result).toEqual({ audioPlayed: false, vibrationStarted: true });
   });
 
   it("dispatches 'stop' action when user taps 'Detener' on notification (RF-010)", () => {

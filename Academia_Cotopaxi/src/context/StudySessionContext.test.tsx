@@ -44,6 +44,10 @@ describe("StudySessionContext orchestrator", () => {
     jest.mocked(notifications.dismissAllNotifications).mockResolvedValue();
     jest.mocked(notifications.startAlarmVibration).mockReturnValue();
     jest.mocked(notifications.stopAlarmVibration).mockReturnValue();
+    jest.mocked(notifications.playAlarmWithFallback).mockResolvedValue({
+      audioPlayed: false,
+      vibrationStarted: true,
+    });
     jest.mocked(notifications.addNotificationResponseListener).mockReturnValue(() => {});
     jest.mocked(notifications.getNotificationPermissionStatus).mockResolvedValue({
       granted: true,
@@ -627,5 +631,119 @@ describe("StudySessionContext orchestrator", () => {
     });
 
     expect(notifications.openNotificationSettings).toHaveBeenCalledTimes(1);
+  });
+
+  it("degrades smoothly to memory and sets non-blocking warning when saveStudySession fails on start (RF-007, Decisión 4)", async () => {
+    jest.mocked(storage.saveStudySession).mockRejectedValueOnce(new Error("Storage disk full"));
+
+    let value!: ReturnType<typeof useStudySession>;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <StudySessionProvider>
+          <Probe onValue={(next) => (value = next)} />
+        </StudySessionProvider>,
+      );
+    });
+
+    await act(async () => {
+      await value.start();
+    });
+
+    // Sesión debe continuar en memoria como "running", sin revertirse ni congelarse
+    expect(value.session.status).toBe("running");
+    expect(value.warning).toContain("memoria");
+    expect(value.error).toBeNull();
+  });
+
+  it("degrades smoothly to memory when saveStudySession fails on pause (RF-007)", async () => {
+    let value!: ReturnType<typeof useStudySession>;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <StudySessionProvider>
+          <Probe onValue={(next) => (value = next)} />
+        </StudySessionProvider>,
+      );
+    });
+
+    await act(async () => {
+      await value.start();
+    });
+    expect(value.session.status).toBe("running");
+
+    jest.mocked(storage.saveStudySession).mockRejectedValueOnce(new Error("Storage write failure"));
+
+    await act(async () => {
+      await value.pause();
+    });
+
+    // Sesión debe pausarse en memoria con advertencia no bloqueante
+    expect(value.session.status).toBe("paused");
+    expect(value.warning).toContain("memoria");
+  });
+
+  it("does not re-prompt notification permission modal on subsequent starts after user dismissed it (RF-008, Decisión 6)", async () => {
+    jest.mocked(notifications.getNotificationPermissionStatus).mockResolvedValue({
+      granted: false,
+      canAskAgain: true,
+    });
+
+    let value!: ReturnType<typeof useStudySession>;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <StudySessionProvider>
+          <Probe onValue={(next) => (value = next)} />
+        </StudySessionProvider>,
+      );
+    });
+
+    // Primer inicio: abre modal
+    await act(async () => {
+      await value.start();
+    });
+    expect(value.isPermissionModalVisible).toBe(true);
+
+    // Usuario descarta el modal para continuar sin avisos
+    await act(async () => {
+      await value.dismissPermissionModal();
+    });
+    expect(value.session.status).toBe("running");
+
+    // Pausa la sesión
+    await act(async () => {
+      await value.pause();
+    });
+    expect(value.session.status).toBe("paused");
+
+    // Segundo inicio: arranca directo sin volver a mostrar el modal
+    await act(async () => {
+      await value.start();
+    });
+    expect(value.isPermissionModalVisible).toBe(false);
+    expect(value.session.status).toBe("running");
+  });
+
+  it("restores phase completed in absence offline and triggers alarm with safe vibration (RF-004, RF-009, Decisión 7)", async () => {
+    // Sesión que expiró mientras la app estaba cerrada (now: 100_000, endTimestamp: 80_000)
+    const expiredSession: StudySession = {
+      ...createInitialSession(1500, 300, 900, 4, 50_000),
+      status: "running",
+      remainingSeconds: 0,
+      endTimestamp: 80_000,
+      notificationId: "old-notif-id",
+      lastActiveTimestamp: 50_000,
+    };
+    jest.mocked(storage.loadStudySession).mockResolvedValueOnce(expiredSession);
+
+    let value!: ReturnType<typeof useStudySession>;
+    await act(async () => {
+      renderer = TestRenderer.create(
+        <StudySessionProvider>
+          <Probe onValue={(next) => (value = next)} />
+        </StudySessionProvider>,
+      );
+    });
+
+    expect(value.isAlarmActive).toBe(true);
+    expect(notifications.playAlarmWithFallback).toHaveBeenCalled();
   });
 });

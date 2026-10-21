@@ -18,75 +18,165 @@ export function SessionMessage({
     return null;
   }
 
+  const isNotificationWarning =
+    !!warning && (warning.includes("avisos fuera de la app") || !!onOpenSettings);
+
   return (
     <View accessibilityLiveRegion="polite" style={styles.container}>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      {warning ? (
-        <View style={styles.warningContainer}>
-          <Text style={styles.warning}>{warning}</Text>
-          {onOpenSettings ? (
-            <Pressable
-              testID="session-message-open-settings"
-              accessibilityRole="button"
-              accessibilityLabel="Abrir ajustes del dispositivo"
-              onPress={onOpenSettings}
-              style={({ pressed }) => [
-                styles.settingsButton,
-                pressed && styles.settingsButtonPressed,
-              ]}
-            >
-              <Text style={styles.settingsButtonText}>Abrir ajustes</Text>
-            </Pressable>
-          ) : null}
+      {error ? (
+        <View style={styles.errorCard}>
+          <View style={styles.errorIconContainer}>
+            <Text style={styles.cardIcon}>⚠️</Text>
+          </View>
+          <Text style={styles.errorText}>{error}</Text>
         </View>
       ) : null}
-      {info ? <Text style={styles.info}>{info}</Text> : null}
+
+      {warning ? (
+        <View style={styles.warningCard}>
+          <View style={styles.warningIconContainer}>
+            <Text style={styles.cardIcon}>{isNotificationWarning ? "🔔" : "⚠️"}</Text>
+          </View>
+          <View style={styles.warningContent}>
+            <Text style={styles.warning}>{warning}</Text>
+            {onOpenSettings ? (
+              <Pressable
+                testID="session-message-open-settings"
+                accessibilityRole="button"
+                accessibilityLabel="Abrir ajustes del dispositivo"
+                onPress={onOpenSettings}
+                style={({ pressed }) => [
+                  styles.settingsButton,
+                  pressed && styles.settingsButtonPressed,
+                ]}
+              >
+                <Text style={styles.settingsButtonText}>Abrir ajustes</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
+
+      {info ? (
+        <View style={styles.infoCard}>
+          <View style={styles.infoIconContainer}>
+            <Text style={styles.cardIcon}>ℹ️</Text>
+          </View>
+          <Text style={styles.infoText}>{info}</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    gap: 8,
+    gap: 10,
     width: "100%",
   },
-  warningContainer: {
+  warningCard: {
     alignItems: "center",
-    gap: 6,
+    backgroundColor: theme.colors.white,
+    borderColor: theme.colors.slate,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    flexDirection: "row",
+    gap: 12,
+    padding: 14,
+    shadowColor: theme.colors.navyBrand,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  error: {
-    color: theme.colors.danger,
-    fontSize: 15,
-    textAlign: "center",
+  warningIconContainer: {
+    alignItems: "center",
+    backgroundColor: "rgba(118, 120, 166, 0.18)",
+    borderRadius: 20,
+    height: 40,
+    justifyContent: "center",
+    width: 40,
+  },
+  cardIcon: {
+    fontSize: 18,
+  },
+  warningContent: {
+    flex: 1,
+    gap: 8,
   },
   warning: {
     color: theme.colors.navyBrand,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "600",
-    textAlign: "center",
+    lineHeight: 19,
   },
   settingsButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: theme.colors.navyBrand,
-    backgroundColor: theme.colors.white,
-    marginTop: 4,
+    alignSelf: "flex-start",
+    backgroundColor: theme.colors.navyBrand,
+    borderRadius: 10,
+    justifyContent: "center",
+    minHeight: 38,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
   },
   settingsButtonPressed: {
-    backgroundColor: theme.colors.slate,
     opacity: 0.8,
   },
   settingsButtonText: {
-    color: theme.colors.navyBrand,
-    fontSize: 14,
+    color: theme.colors.white,
+    fontSize: 13,
     fontWeight: "700",
   },
-  info: {
+  errorCard: {
+    alignItems: "center",
+    backgroundColor: theme.colors.white,
+    borderColor: theme.colors.danger,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    flexDirection: "row",
+    gap: 12,
+    padding: 14,
+  },
+  errorIconContainer: {
+    alignItems: "center",
+    backgroundColor: "rgba(211, 55, 36, 0.15)",
+    borderRadius: 20,
+    height: 40,
+    justifyContent: "center",
+    width: 40,
+  },
+  errorText: {
+    color: theme.colors.danger,
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 19,
+  },
+  infoCard: {
+    alignItems: "center",
+    backgroundColor: theme.colors.white,
+    borderColor: theme.colors.slate,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    flexDirection: "row",
+    gap: 12,
+    padding: 14,
+  },
+  infoIconContainer: {
+    alignItems: "center",
+    backgroundColor: "rgba(118, 120, 166, 0.18)",
+    borderRadius: 20,
+    height: 40,
+    justifyContent: "center",
+    width: 40,
+  },
+  infoText: {
     color: theme.colors.navyBrand,
-    fontSize: 15,
-    textAlign: "center",
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 19,
   },
 });
+
 

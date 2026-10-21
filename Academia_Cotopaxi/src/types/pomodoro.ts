@@ -18,6 +18,27 @@ export interface StudySettings {
   studyDurationMinutes: number;
 }
 
+export interface PomodoroSettings {
+  studyDurationMinutes: number;
+  shortBreakMinutes: number;
+  longBreakMinutes: number;
+  cycleTarget: number;
+}
+
+export interface SettingsFieldErrors {
+  studyDurationMinutes?: string | null;
+  shortBreakMinutes?: string | null;
+  longBreakMinutes?: string | null;
+  cycleTarget?: string | null;
+}
+
+export interface SettingsFormInput {
+  studyDurationMinutes: string;
+  shortBreakMinutes: string;
+  longBreakMinutes: string;
+  cycleTarget: string;
+}
+
 export type RecoveryAnomaly =
   | "none"
   | "phaseCompletedInAbsence"
